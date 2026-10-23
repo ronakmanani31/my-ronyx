@@ -1,0 +1,169 @@
+
+<!DOCTYPE html>
+<html lang="gu">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>MY RONYX</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#10151b;color:white;font-family:Arial,sans-serif;overflow:hidden}
+#top{position:absolute;top:0;left:0;right:0;padding:12px;background:#10151be8;display:flex;justify-content:space-between;align-items:center;z-index:3}
+.logo{font-size:22px;font-weight:900;color:#52e0a0}
+button,input,select{border:0;border-radius:10px;padding:11px;background:#25323e;color:white;font-size:14px}
+button{cursor:pointer;background:#16a879;font-weight:bold}
+#game{display:block;width:100vw;height:100dvh;touch-action:none}
+#panel{position:absolute;inset:0;background:#10151b;z-index:5;display:flex;align-items:center;justify-content:center;padding:20px}
+#panel .box{width:100%;max-width:360px;background:#1d2934;border:1px solid #394957;border-radius:20px;padding:22px}
+#panel h1{color:#52e0a0;margin:0 0 8px}
+#panel input,#panel select{width:100%;margin:7px 0}
+#panel button{width:100%;margin-top:10px}
+#hud{position:absolute;top:68px;left:12px;right:12px;pointer-events:none;display:none}
+#mission{background:#10151bdc;padding:10px 12px;border-radius:12px;display:inline-block;font-size:13px}
+#stats{position:absolute;right:12px;top:70px;background:#10151bdc;padding:10px;border-radius:12px;font-size:13px;display:none}
+#controls{position:absolute;bottom:18px;left:0;right:0;display:none;justify-content:space-between;align-items:end;padding:0 16px;pointer-events:none}
+.pad{display:grid;grid-template-columns:52px 52px 52px;grid-template-rows:48px 48px;gap:5px}
+.ctrl{pointer-events:auto;background:#17252ddd;border:1px solid #81909b;border-radius:14px;font-size:20px;min-width:48px;min-height:45px;touch-action:none}
+#up{grid-column:2}#left{grid-column:1;grid-row:2}#down{grid-column:2;grid-row:2}#right{grid-column:3;grid-row:2}
+.actions{display:flex;flex-direction:column;gap:9px}
+.actions button{min-width:76px;min-height:48px;font-size:12px}
+#toast{position:absolute;bottom:145px;left:50%;transform:translateX(-50%);background:#111d;padding:10px 15px;border-radius:12px;display:none;white-space:nowrap}
+#help{position:absolute;bottom:6px;left:0;right:0;text-align:center;color:#ccd4dd;font-size:11px;pointer-events:none}
+</style>
+</head>
+<body>
+<div id="top"><span class="logo">MY RONYX</span><button onclick="showMenu()">MENU ☰</button></div>
+<canvas id="game"></canvas>
+<div id="panel">
+ <div class="box">
+  <h1>MY RONYX</h1>
+  <p>MY GAME, MY RULES</p>
+  <p>તમારી પોતાની શહેરની દુનિયામાં રમો!</p>
+  <input id="playerName" maxlength="16" placeholder="તમારું નામ લખો">
+  <select id="gender"><option value="male">Male Character</option><option value="female">Female Character</option></select>
+  <button onclick="startGame()">PLAY GAME ▶</button>
+  <p style="font-size:12px;color:#bac6d0">પ્રોટોટાઇપ વર્ઝન · Offline · મોબાઇલ માટે</p>
+ </div>
+</div>
+<div id="hud"><div id="mission">🎯 Mission: લીલા માર્કર સુધી પહોંચો</div></div>
+<div id="stats">⭐ સ્કોર: <span id="score">0</span><br>🚶 મોડ: <span id="mode">ચાલવું</span></div>
+<div id="controls">
+ <div class="pad">
+  <button class="ctrl" id="up">▲</button><button class="ctrl" id="left">◀</button>
+  <button class="ctrl" id="down">▼</button><button class="ctrl" id="right">▶</button>
+ </div>
+ <div class="actions">
+  <button id="drive">🚗 કારમાં બેસો</button>
+  <button id="jump">🕺 એક્શન</button>
+ </div>
+</div>
+<div id="toast"></div><div id="help">દિશા બદલવા માટે બટનો દબાવો · કાર પાસે જઈને કાર બટન દબાવો</div>
+<script>
+const canvas=document.getElementById('game'),ctx=canvas.getContext('2d');
+let W=innerWidth,H=innerHeight,dpr=1;
+function resize(){dpr=Math.min(devicePixelRatio||1,2);W=innerWidth;H=innerHeight;canvas.width=W*dpr;canvas.height=H*dpr;canvas.style.width=W+'px';canvas.style.height=H+'px';ctx.setTransform(dpr,0,0,dpr,0,0)}
+addEventListener('resize',resize);resize();
+let running=false,name='RONAK',gender='male',score=0,inCar=false,toastTimer;
+const world={w:2400,h:2400};
+const player={x:1200,y:1200,dir:0,speed:0};
+const car={x:1260,y:1200,dir:0};
+const keys={};
+let mission={x:1450,y:1400};
+function showToast(t){let el=document.getElementById('toast');el.textContent=t;el.style.display='block';clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.style.display='none',2200)}
+function showMenu(){document.getElementById('panel').style.display='flex'}
+function startGame(){
+ name=(document.getElementById('playerName').value.trim()||'RONAK').slice(0,16);
+ gender=document.getElementById('gender').value;
+ document.getElementById('panel').style.display='none';
+ document.getElementById('hud').style.display='block';
+ document.getElementById('stats').style.display='block';
+ document.getElementById('controls').style.display='flex';
+ running=true;showToast('સ્વાગત છે, '+name+'!');loop();
+}
+function setKey(id,k){
+ const el=document.getElementById(id);
+ el.addEventListener('pointerdown',e=>{e.preventDefault();keys[k]=true;el.setPointerCapture(e.pointerId)});
+ ['pointerup','pointercancel','lostpointercapture'].forEach(ev=>el.addEventListener(ev,()=>keys[k]=false));
+}
+setKey('up','up');setKey('down','down');setKey('left','left');setKey('right','right');
+document.getElementById('drive').onclick=()=>{
+ let obj=inCar?car:player,dist=Math.hypot(player.x-car.x,player.y-car.y);
+ if(inCar){player.x=car.x+35;player.y=car.y;inCar=false;showToast('તમે કારમાંથી ઉતર્યા!')}
+ else if(dist<100){inCar=true;showToast('કાર શરૂ! 🚗')}
+ else showToast('પહેલા કારની નજીક જા!');
+ document.getElementById('drive').textContent=inCar?'🚶 કારમાંથી ઉતરો':'🚗 કારમાં બેસો';
+ document.getElementById('mode').textContent=inCar?'ડ્રાઇવિંગ':'ચાલવું';
+};
+document.getElementById('jump').onclick=()=>{score+=5;document.getElementById('score').textContent=score;showToast('😂 ફની એક્શન! +5 પોઇન્ટ')};
+addEventListener('keydown',e=>{let m={ArrowUp:'up',w:'up',ArrowDown:'down',s:'down',ArrowLeft:'left',a:'left',ArrowRight:'right',d:'right'};if(m[e.key])keys[m[e.key]]=true});
+addEventListener('keyup',e=>{let m={ArrowUp:'up',w:'up',ArrowDown:'down',s:'down',ArrowLeft:'left',a:'left',ArrowRight:'right',d:'right'};if(m[e.key])keys[m[e.key]]=false});
+function road(x,y){return Math.abs((x%400)-200)<65||Math.abs((y%400)-200)<65}
+function drawWorld(){
+ ctx.fillStyle='#668c58';ctx.fillRect(0,0,world.w,world.h);
+ for(let x=0;x<world.w;x+=400)for(let y=0;y<world.h;y+=400){
+  ctx.fillStyle='#b4a58a';ctx.fillRect(x+85,y+85,230,230);
+  for(let bx=x+100;bx<x+300;bx+=100)for(let by=y+100;by<y+300;by+=100){
+   ctx.fillStyle=['#d7c4a1','#c8d0ce','#bda995','#d2b9a0'][(Math.floor(bx+by)/100)%4|0];
+   ctx.fillRect(bx,by,80,80);
+   ctx.fillStyle='#8e9c9b';ctx.fillRect(bx+10,by+10,15,18);ctx.fillRect(bx+50,by+10,15,18);
+  }
+ }
+ ctx.fillStyle='#343b40';
+ for(let x=0;x<world.w;x+=400){ctx.fillRect(x+135,0,130,world.h)}
+ for(let y=0;y<world.h;y+=400){ctx.fillRect(0,y+135,world.w,130)}
+ ctx.strokeStyle='#d8d0a1';ctx.lineWidth=3;ctx.setLineDash([18,18]);
+ for(let x=0;x<world.w;x+=400){ctx.beginPath();ctx.moveTo(x+200,0);ctx.lineTo(x+200,world.h);ctx.stroke()}
+ for(let y=0;y<world.h;y+=400){ctx.beginPath();ctx.moveTo(0,y+200);ctx.lineTo(world.w,y+200);ctx.stroke()}
+ ctx.setLineDash([]);
+ for(let x=65;x<world.w;x+=130)for(let y=65;y<world.h;y+=130){
+  if(!road(x,y)){ctx.fillStyle='#315b37';ctx.beginPath();ctx.arc(x,y,15,0,Math.PI*2);ctx.fill();ctx.fillStyle='#47834c';ctx.beginPath();ctx.arc(x-3,y-4,11,0,Math.PI*2);ctx.fill()}
+ }
+}
+function drawAvatar(x,y,dir,isPlayer=true){
+ ctx.save();ctx.translate(x,y);ctx.rotate(dir);
+ ctx.fillStyle='#0006';ctx.beginPath();ctx.ellipse(0,7,13,8,0,0,Math.PI*2);ctx.fill();
+ ctx.fillStyle=isPlayer?(gender==='male'?'#2778e8':'#d84b9b'):'#e9c48a';
+ ctx.fillRect(-9,-8,18,23);
+ ctx.fillStyle='#e8b68d';ctx.beginPath();ctx.arc(0,-14,9,0,Math.PI*2);ctx.fill();
+ ctx.fillStyle='#303039';ctx.beginPath();ctx.arc(0,-17,9,Math.PI,Math.PI*2);ctx.fill();
+ ctx.restore();
+ if(isPlayer){
+  ctx.font='bold 14px Arial';ctx.textAlign='center';ctx.lineWidth=3;ctx.strokeStyle='#18211b';ctx.strokeText(name,x,y-29);ctx.fillStyle='#fff';ctx.fillText(name,x,y-29);
+ }
+}
+function drawCar(x,y,dir){
+ ctx.save();ctx.translate(x,y);ctx.rotate(dir);
+ ctx.fillStyle='#121820';ctx.fillRect(-22,-12,44,24);
+ ctx.fillStyle='#e0a52f';ctx.fillRect(-17,-10,34,20);
+ ctx.fillStyle='#8cd8ed';ctx.fillRect(-8,-9,15,18);
+ ctx.fillStyle='#fff4b0';ctx.fillRect(17,-9,4,6);ctx.fillRect(17,3,4,6);
+ ctx.restore();
+}
+let last=0;
+function loop(t=0){
+ if(!running)return;
+ let dt=Math.min((t-last)/16.67||1,2);last=t;
+ let obj=inCar?car:player,move=0;
+ if(keys.up)move=3.3;if(keys.down)move=-2.5;
+ if(keys.left)obj.dir-=.055*dt;if(keys.right)obj.dir+=.055*dt;
+ obj.x+=Math.cos(obj.dir)*move*dt;obj.y+=Math.sin(obj.dir)*move*dt;
+ obj.x=Math.max(20,Math.min(world.w-20,obj.x));obj.y=Math.max(20,Math.min(world.h-20,obj.y));
+ if(inCar){player.x=car.x;player.y=car.y;player.dir=car.dir}
+ if(Math.hypot(player.x-mission.x,player.y-mission.y)<45){
+  score+=10;document.getElementById('score').textContent=score;
+  mission={x:200+Math.random()*2000,y:200+Math.random()*2000};
+  showToast('મિશન પૂરું! +10 પોઇન્ટ 🎉');
+ }
+ ctx.clearRect(0,0,W,H);
+ ctx.save();ctx.translate(W/2-player.x,H/2-player.y);
+ drawWorld();
+ ctx.fillStyle='#4cff8a';ctx.beginPath();ctx.arc(mission.x,mission.y,19,0,Math.PI*2);ctx.fill();
+ ctx.fillStyle='#143e25';ctx.font='bold 12px Arial';ctx.textAlign='center';ctx.fillText('GO!',mission.x,mission.y+4);
+ drawCar(car.x,car.y,car.dir);
+ if(!inCar)drawAvatar(player.x,player.y,player.dir);
+ ctx.restore();
+ requestAnimationFrame(loop);
+}
+</script>
+</body>
+</html>
